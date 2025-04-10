@@ -19,6 +19,7 @@ from tqdm import tqdm
 from model import Encoder_Decoder
 ##################
 
+## new ##
 def save_image(
     tensor,
     fp,
@@ -48,7 +49,6 @@ def save_image(
     im = Image.fromarray(ndarr)
     im.save(fp, format=format)
 
-
 def save_images(sigma, folder, name, *args, **kwargs):
 
     for i, img in enumerate(args):
@@ -70,7 +70,7 @@ def generate_binary_seed(seed_str: str) -> int:
 def generate_binary_data(seed: int, length: int = 30) -> list:
     rng = np.random.RandomState(seed)
     return rng.randint(0, 2, size=length).tolist()
-
+## new ##
 
 def psnr_ssim_acc(image, H_img):
     # psnr
@@ -268,6 +268,7 @@ if __name__ == "__main__":
         ## new ##
         print('-'*60)
 
+        ## new ##
         class_img = []
         class_message = []
         classes = [d.name for d in os.scandir(input_root) if d.is_dir()]
@@ -303,10 +304,10 @@ if __name__ == "__main__":
 
             save_images(n, './img', 'Spatial', output_img, output_img_n, output_img_g, output_img_r)
 
-            ## new ##
             diff_w = output_img - inputs
             diff_r = output_img_r - inputs
             diff_g = output_img_g - inputs
 
             save_images(n, './img', 'Diff', diff_w, diff_r, diff_g)
+        ## new ##
 
