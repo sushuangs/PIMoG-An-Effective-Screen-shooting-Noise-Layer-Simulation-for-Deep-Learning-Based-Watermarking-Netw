@@ -10,16 +10,29 @@ class ImageLoader_for_train_mask(data.Dataset):
 		super(ImageLoader_for_train_mask,self).__init__()
 		self.data_dir = data_dir
 		self.transform = transform
-		self.img_paths = os.listdir(data_dir)
 		self.image_size = image_size
-    
+		self.classes = [d.name for d in os.scandir(self.data_dir) if d.is_dir()]
+		self.img_paths = self._make_dataset()
+
+	def _make_dataset(self):
+		samples = []
+		for class_name in self.classes:
+			class_dir = os.path.join(self.data_dir, class_name)
+			
+			for filename in os.listdir(class_dir):
+				path = os.path.join(class_dir, filename)
+				if os.path.isfile(path):
+					samples.append(path)
+		
+		return samples
+
 	def __len__(self):
 		return len(self.img_paths)
 
 	def __getitem__(self,index):
 		imagesize = self.image_size
 		curr_img_path = self.img_paths[index]
-		img = cv2.imread(self.data_dir + curr_img_path,1)
+		img = cv2.imread(curr_img_path,1)
 		data_img = img[:,:imagesize,:]
 
 		mask = img[:,imagesize:,:]
@@ -75,7 +88,7 @@ def get_loader(image_dir, image_size=128,
 
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
-                                  shuffle=(mode=='train'),
+                                  shuffle=(mode=='train_mask'),
                                   num_workers=num_workers,
                                   drop_last=False)
     return data_loader

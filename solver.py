@@ -3,6 +3,7 @@ from model import Encoder_Decoder
 from torch.autograd import Variable
 import torch.optim as optim
 import torch
+import kornia
 import numpy as np
 import os
 import time
@@ -83,6 +84,15 @@ class Solver(object):
         for p in model.parameters():
             num_params += p.numel()
 
+    def psnr_ssim_acc(self, image, H_img):
+        # psnr
+        H_psnr = kornia.metrics.psnr(
+            ((image + 1) / 2).clamp(0, 1),
+            ((H_img.detach() + 1) / 2).clamp(0, 1),
+            1,
+        )
+        return H_psnr
+
     def test_embedding(self):
         # Set data loader.
         data_loader = self.data_loader
@@ -139,6 +149,7 @@ class Solver(object):
         start_time = time.time()
         txtfile = open(self.log_dir+'/'+self.dataset+'_'+self.distortion+'.txt','w',encoding="utf-8") 
         best_acc = 0.3
+        best_psnr = 20
         for epoch in range(start_epoch, self.num_epoch):
             running_loss = 0.0
 
@@ -151,9 +162,10 @@ class Solver(object):
             	inputgrad = torch.autograd.grad(loss_de, inputs,create_graph=True)[0]
             	mask = torch.zeros(inputgrad.shape).to(self.device)
             	for ii in range(inputgrad.shape[0]):
-            	    a = inputgrad[ii,:,:,:]
-            	    a = (1-(a-a.min())/(a.max()-a.min()))+1
-            	    mask[ii,:,:,:] = a.detach()
+                    a = inputgrad[ii,:,:,:]
+                    # a = (1-(a-a.min())/(a.max()-a.min()))+1
+                    a = ((a-a.min())/(a.max()-a.min()))+1
+                    mask[ii,:,:,:] = a.detach()
             	d_label_host = torch.full((inputs.shape[0], 1), 1, dtype=torch.float, device=self.device)
             	d_label_decoded = torch.full((inputs.shape[0], 1), 0, dtype=torch.float, device=self.device)
             	g_label_decoded = torch.full((inputs.shape[0], 1), 1, dtype=torch.float, device=self.device)
@@ -220,27 +232,33 @@ class Solver(object):
     
             correct = 0
             total = 0
+            psnrs = []
             for i, (data, m, v_mask) in enumerate(data_loader_test):
-            	inputs, m, v_mask = Variable(data), Variable(m.float()), Variable(v_mask)
-            	inputs, m, v_mask = inputs.to(self.device), m.to(self.device),v_mask.to(self.device)
-            	Encoded_image, Noised_image, Decoded_message = self.net(inputs, m)
-            	decoded_rounded = Decoded_message.detach().cpu().numpy().round().clip(0, 1)
-            	correct += np.sum(np.abs(decoded_rounded - m.detach().cpu().numpy()))
-            	total += inputs.shape[0] * m.shape[1]
+                inputs, m, v_mask = Variable(data), Variable(m.float()), Variable(v_mask)
+                inputs, m, v_mask = inputs.to(self.device), m.to(self.device),v_mask.to(self.device)
+                Encoded_image, Noised_image, Decoded_message = self.net(inputs, m)
+                psnr = self.psnr_ssim_acc(inputs.detach().cpu(), Encoded_image.detach().cpu())
+                decoded_rounded = Decoded_message.detach().cpu().numpy().round().clip(0, 1)
+                correct += np.sum(np.abs(decoded_rounded - m.detach().cpu().numpy()))
+                psnrs.append(psnr)
+                total += inputs.shape[0] * m.shape[1]
+            print(f"psnr:{np.mean(psnrs)}")
+            print(f"psnr:{np.mean(psnrs)}",file=txtfile)
             print("Correct Rate:%.3f"%((1-correct/total)*100)+'%')
             print("Correct Rate:%.3f"%((1-correct/total)*100)+'%',file=txtfile)
 
             if not os.path.exists(self.model_save_dir+'/'+self.distortion+'/'):
-            	os.makedirs(self.model_save_dir+'/'+self.distortion+'/')
+                os.makedirs(self.model_save_dir+'/'+self.distortion+'/')
             PATH_Encoder_Decoder = self.model_save_dir+'/'+self.distortion+'/'+self.model_name+'_mask_'+str(epoch)+'.pth'
 
             if epoch%(self.model_save_step)==(self.model_save_step-1):
                 torch.save(self.net.state_dict(),PATH_Encoder_Decoder)
-            PATH_Encoder_Decoder_best = self.model_save_dir+'/'+self.model_name+'_mask_'+str(self.distortion)+'_best.pth'
             
-            if 1-correct/total>=best_acc:
-            	best_acc = 1-correct/total
-            	torch.save(self.net.state_dict(),PATH_Encoder_Decoder_best)
+            
+            if np.mean(psnrs)>=best_psnr:
+                PATH_Encoder_Decoder_best = self.model_save_dir+'/'+self.model_name+'_mask_'+str(epoch)+'_'+str(self.distortion)+'_psnr_'+str(np.mean(psnrs))+'_best.pth'
+                best_psnr = np.mean(psnrs)
+                torch.save(self.net.state_dict(),PATH_Encoder_Decoder_best)
             self.net.train()
 
     def test_accuracy(self):
