@@ -19,6 +19,59 @@ from tqdm import tqdm
 from model import Encoder_Decoder
 ##################
 
+def save_image(
+    tensor,
+    fp,
+    nrow: int = 8,
+    padding: int = 2,
+    normalize: bool = False,
+    range = None,
+    scale_each: bool = False,
+    pad_value: int = 0,
+    format = None,
+) -> None:
+    """Save a given Tensor into an image file.
+
+    Args:
+        tensor (Tensor or list): Image to be saved. If given a mini-batch tensor,
+            saves the tensor as a grid of images by calling ``make_grid``.
+        fp (string or file object): A filename or a file object
+        format(Optional):  If omitted, the format to use is determined from the filename extension.
+            If a file object was used instead of a filename, this parameter should always be used.
+        **kwargs: Other arguments are documented in ``make_grid``.
+    """
+    from PIL import Image
+    grid = torchvision.utils.make_grid(tensor, nrow=nrow, padding=padding, pad_value=pad_value,
+                     normalize=normalize, value_range=range, scale_each=scale_each)
+    # Add 0.5 after unnormalizing to [0, 255] to round to nearest integer
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()
+    im = Image.fromarray(ndarr)
+    im.save(fp, format=format)
+
+
+def save_images(sigma, folder, name, *args, **kwargs):
+
+    for i, img in enumerate(args):
+        args[i] = (img.cpu() + 1) / 2
+
+    stacked_images = torch.cat(args, dim=0)
+    mkdir(folder, exist_ok=True)
+    filename = os.path.join(folder, 'sigma-{}--{}.png'.format(sigma, name))
+    save_image(stacked_images, filename, cover_img.shape[0], normalize=False)
+
+
+def generate_binary_seed(seed_str: str) -> int:
+    seed_str = seed_str.lower().replace("\\", "/").split('/')[-1]
+    seed_str = seed_str.split('.')[0]
+    hash_bytes = hashlib.sha256(seed_str.encode("utf-8")).digest()
+    return int.from_bytes(hash_bytes[:4], byteorder="big")
+
+
+def generate_binary_data(seed: int, length: int = 30) -> list:
+    rng = np.random.RandomState(seed)
+    return rng.randint(0, 2, size=length).tolist()
+
+
 def psnr_ssim_acc(image, H_img):
     # psnr
     H_psnr = kornia.metrics.psnr(
@@ -26,18 +79,7 @@ def psnr_ssim_acc(image, H_img):
         ((H_img.detach() + 1) / 2).clamp(0, 1),
         1,
     )
-    # ssim
-    # H_ssim = kornia.metrics.ssim(
-    #     ((image + 1) / 2).clamp(0, 1),
-    #     ((H_img.detach() + 1) / 2).clamp(0, 1),
-    #     window_size=11,
-    # ).mean()
-    # L_ssim = kornia.metrics.ssim(
-    #     ((image + 1) / 2).clamp(0, 1),
-    #     ((L_img.detach() + 1) / 2).clamp(0, 1),
-    #     window_size=11,
-    # ).mean()
-    return H_psnr #, L_psnr , H_ssim, L_ssim
+    return H_psnr
 
 
 class ImageProcessingDataset(Dataset):
@@ -146,12 +188,12 @@ if __name__ == "__main__":
                 inputs = inputs.to(device)
 
                 message = message.to(device)
-#####################
+                #####################
                 output_img = encoder(inputs, message)
                 output_img_n = output_img + noise
                 output_img_g = gaussian_blur(output_img_n)
                 output_img_r = scunet(output_img_n)
-                
+
                 ## new ##
                 diff_w = output_img - inputs
                 diff_r = output_img_r - inputs
@@ -164,7 +206,7 @@ if __name__ == "__main__":
                 decoded_messages_n = decoder(output_img_n)
                 decoded_messages_r = decoder(output_img_r)
                 decoded_messages_g = decoder(output_img_g)
-####################                
+                ####################                
                 decoded_rounded_n = decoded_messages_n.detach().cpu().numpy().round().clip(0, 1)
                 bitwise_avg_err_n = np.sum(np.abs(decoded_rounded_n - message.detach().cpu().numpy())) / (
                         batch_size * 30)
@@ -225,3 +267,46 @@ if __name__ == "__main__":
         print('in sigma {}, diff_w_r_mse                        {:.4f}'.format(n, diff_w_r_mse_mean))
         ## new ##
         print('-'*60)
+
+        class_img = []
+        class_message = []
+        classes = [d.name for d in os.scandir(input_root) if d.is_dir()]
+        classes.sort()
+
+        img_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
+    
+        for name in classes:
+            cl = os.path.join(input_root, name)
+            files = os.listdir(cl)
+            files.sort()
+            img_path = os.path.join(cl, file[0])
+            image = Image.open(img_path).convert('RGB')
+            img = img_transform(image)
+            seed = generate_binary_seed(img_path)
+            binary_data = generate_binary_data(seed, 30)
+            class_img.append(class_img)
+            class_message.append(torch.from_numpy(binary_data))
+            
+        batch_class_img = torch.stack(class_img, dim=0)
+        batch_class_message = torch.stack(class_message, dim=0)
+
+        with torch.no_grad():
+            batch_class_img.to(device)
+            batch_class_message.to(device)
+
+            output_img = encoder(batch_class_img, batch_class_message)
+            output_img_n = output_img + noise
+            output_img_g = gaussian_blur(output_img_n)
+            output_img_r = scunet(output_img_n)
+
+            save_images(n, './img', 'Spatial', output_img, output_img_n, output_img_g, output_img_r)
+
+            ## new ##
+            diff_w = output_img - inputs
+            diff_r = output_img_r - inputs
+            diff_g = output_img_g - inputs
+
+            save_images(n, './img', 'Diff', diff_w, diff_r, diff_g)
+
