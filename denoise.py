@@ -122,7 +122,9 @@ if __name__ == "__main__":
         kernel_size=7,
         sigma=1.0
     )
+    ## new ##
     mse_loss = torch.nn.MSELoss(reduction='mean')
+    ## new ##
     sigma = [0, 15, 25, 50, 75]
     clean = 0
     for n in sigma:
@@ -149,13 +151,15 @@ if __name__ == "__main__":
                 output_img_n = output_img + noise
                 output_img_g = gaussian_blur(output_img_n)
                 output_img_r = scunet(output_img_n)
-
+                
+                ## new ##
                 diff_w = output_img - inputs
                 diff_r = output_img_r - inputs
                 diff_g = output_img_g - inputs
 
                 diff_w_r_mse = mse_loss(diff_w, diff_r)
                 diff_w_g_mse = mse_loss(diff_w, diff_g)
+                ## new ##
 
                 decoded_messages_n = decoder(output_img_n)
                 decoded_messages_r = decoder(output_img_r)
@@ -192,8 +196,10 @@ if __name__ == "__main__":
         noise = 1 - np.mean(bitwise_avg_err_n_history)
         SCUNet_recover = 1 - np.mean(bitwise_avg_err_r_history)
         GaussianBlur_recover = 1 - np.mean(bitwise_avg_err_g_history)
+        ## new ##
         diff_w_r_mse_mean = np.mean(diff_w_r_mses)
         diff_w_g_mse_mean = np.mean(diff_w_g_mses)
+        ## new ##
         print('-'*60)
         if n == 0:
             clean = 1 - np.mean(bitwise_avg_err_n_history)
@@ -213,7 +219,9 @@ if __name__ == "__main__":
         print('in sigma {}, L_psnr_wm_to_n                      {:.4f}'.format(n, np.mean(L_psnrs)))
         print('in sigma {}, N_psnr                              {:.4f}'.format(n, np.mean(N_psnrs)))
         print('in sigma {}, clean                               {:.4f}'.format(n, clean))
+        ## new ##
         print('diff')
         print('in sigma {}, diff_w_g_mse                        {:.4f}'.format(n, diff_w_g_mse_mean))
         print('in sigma {}, diff_w_r_mse                        {:.4f}'.format(n, diff_w_r_mse_mean))
+        ## new ##
         print('-'*60)
