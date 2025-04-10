@@ -6,7 +6,6 @@
 # *.tiff
 *.pth
 runs/*
-models/*
 results/*
 #
 
