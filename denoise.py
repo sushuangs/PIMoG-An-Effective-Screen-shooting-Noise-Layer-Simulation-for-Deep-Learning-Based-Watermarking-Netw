@@ -289,7 +289,7 @@ if __name__ == "__main__":
             seed = generate_binary_seed(img_path)
             binary_data = generate_binary_data(seed, 30)
             class_imgs.append(img)
-            class_message.append(torch.tensor(binary_data))
+            class_message.append(torch.tensor(binary_data, dtype=torch.float32))
             
         batch_class_img = torch.stack(class_imgs, dim=0)
         batch_class_message = torch.stack(class_message, dim=0)
