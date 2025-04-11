@@ -11,6 +11,7 @@ from PIL import Image
 import shutil
 
 import kornia
+import torchvision
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
@@ -50,14 +51,14 @@ def save_image(
     im.save(fp, format=format)
 
 def save_images(sigma, folder, name, *args, **kwargs):
-
+    imgs = []
     for i, img in enumerate(args):
-        args[i] = (img.cpu() + 1) / 2
+        imgs.append((img.cpu() + 1) / 2)
 
-    stacked_images = torch.cat(args, dim=0)
-    mkdir(folder, exist_ok=True)
+    stacked_images = torch.cat(imgs, dim=0)
+    os.makedirs(folder, exist_ok=True)
     filename = os.path.join(folder, 'sigma-{}--{}.png'.format(sigma, name))
-    save_image(stacked_images, filename, cover_img.shape[0], normalize=False)
+    save_image(stacked_images, filename, 31, normalize=False)
 
 
 def generate_binary_seed(seed_str: str) -> int:
@@ -263,13 +264,13 @@ if __name__ == "__main__":
         print('in sigma {}, clean                               {:.4f}'.format(n, clean))
         ## new ##
         print('diff')
-        print('in sigma {}, diff_w_g_mse                        {:.4f}'.format(n, diff_w_g_mse_mean))
-        print('in sigma {}, diff_w_r_mse                        {:.4f}'.format(n, diff_w_r_mse_mean))
+        print('in sigma {}, diff_w_g_mse*1000                   {:.4f}'.format(n, diff_w_g_mse_mean*1000))
+        print('in sigma {}, diff_w_r_mse*1000                   {:.4f}'.format(n, diff_w_r_mse_mean*1000))
         ## new ##
         print('-'*60)
 
         ## new ##
-        class_img = []
+        class_imgs = []
         class_message = []
         classes = [d.name for d in os.scandir(input_root) if d.is_dir()]
         classes.sort()
@@ -282,21 +283,21 @@ if __name__ == "__main__":
             cl = os.path.join(input_root, name)
             files = os.listdir(cl)
             files.sort()
-            img_path = os.path.join(cl, file[0])
+            img_path = os.path.join(cl, files[0])
             image = Image.open(img_path).convert('RGB')
             img = img_transform(image)
             seed = generate_binary_seed(img_path)
             binary_data = generate_binary_data(seed, 30)
-            class_img.append(class_img)
-            class_message.append(torch.from_numpy(binary_data))
+            class_imgs.append(img)
+            class_message.append(torch.tensor(binary_data))
             
-        batch_class_img = torch.stack(class_img, dim=0)
+        batch_class_img = torch.stack(class_imgs, dim=0)
         batch_class_message = torch.stack(class_message, dim=0)
+        batch_class_img = batch_class_img.to(device)
+        batch_class_message = batch_class_message.to(device)
 
         with torch.no_grad():
-            batch_class_img.to(device)
-            batch_class_message.to(device)
-
+            noise = torch.Tensor(np.random.normal(0, n, batch_class_img.shape)/128.).to(device)
             output_img = encoder(batch_class_img, batch_class_message)
             output_img_n = output_img + noise
             output_img_g = gaussian_blur(output_img_n)
@@ -304,10 +305,22 @@ if __name__ == "__main__":
 
             save_images(n, './img', 'Spatial', output_img, output_img_n, output_img_g, output_img_r)
 
-            diff_w = output_img - inputs
-            diff_r = output_img_r - inputs
-            diff_g = output_img_g - inputs
+            diff_w = output_img - batch_class_img
+            diff_g = output_img_g - batch_class_img
+            diff_r = output_img_r - batch_class_img
+            
+            o_dw = output_img.max() / diff_w.max()
+            o_dg = output_img.max() / diff_g.max()
+            o_dr = output_img.max() / diff_r.max()
+            
+            save_images(n, './img', 'Diff_I_D', diff_w*o_dw, diff_g*o_dg, diff_r*o_dr)
 
-            save_images(n, './img', 'Diff', diff_w, diff_r, diff_g)
+            diff_g_w = diff_g - diff_w
+            diff_r_w = diff_r - diff_w
+            
+            o_dg_w = output_img.max() / diff_g_w.max()
+            o_dr_w = output_img.max() / diff_r_w.max()
+
+            save_images(n, './img', 'Diff_M_D', diff_g_w*o_dg_w, diff_r_w*o_dr_w)
         ## new ##
 
