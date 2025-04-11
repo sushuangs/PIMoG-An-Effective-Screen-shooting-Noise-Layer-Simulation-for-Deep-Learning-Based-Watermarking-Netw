@@ -264,8 +264,8 @@ if __name__ == "__main__":
         print('in sigma {}, clean                               {:.4f}'.format(n, clean))
         ## new ##
         print('diff')
-        print('in sigma {}, diff_w_g_mse*1000                   {:.4f}'.format(n, diff_w_g_mse_mean*1000))
-        print('in sigma {}, diff_w_r_mse*1000                   {:.4f}'.format(n, diff_w_r_mse_mean*1000))
+        print('in sigma {}, diff_w_g_mse*100                    {:.4f}'.format(n, diff_w_g_mse_mean*100))
+        print('in sigma {}, diff_w_r_mse*100                    {:.4f}'.format(n, diff_w_r_mse_mean*100))
         ## new ##
         print('-'*60)
 
