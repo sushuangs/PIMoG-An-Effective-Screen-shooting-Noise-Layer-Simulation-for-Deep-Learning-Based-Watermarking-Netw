@@ -232,10 +232,10 @@ if __name__ == "__main__":
                 bitwise_avg_err_n_history.append(bitwise_avg_err_n)
                 bitwise_avg_err_r_history.append(bitwise_avg_err_r)
                 bitwise_avg_err_g_history.append(bitwise_avg_err_g)
-
+                ## new ##
                 diff_w_r_mses.append(diff_w_r_mse.cpu())
                 diff_w_g_mses.append(diff_w_g_mse.cpu())
-                
+                ## new ##
         noise = 1 - np.mean(bitwise_avg_err_n_history)
         SCUNet_recover = 1 - np.mean(bitwise_avg_err_r_history)
         GaussianBlur_recover = 1 - np.mean(bitwise_avg_err_g_history)
@@ -264,8 +264,8 @@ if __name__ == "__main__":
         print('in sigma {}, clean                               {:.4f}'.format(n, clean))
         ## new ##
         print('diff')
-        print('in sigma {}, diff_w_g_mse*100                    {:.4f}'.format(n, diff_w_g_mse_mean*100))
-        print('in sigma {}, diff_w_r_mse*100                    {:.4f}'.format(n, diff_w_r_mse_mean*100))
+        print('in sigma {}, log10 diff_w_g_mse                  {:.4f}'.format(n, np.log10(diff_w_g_mse_mean)))
+        print('in sigma {}, log10 diff_w_r_mse                  {:.4f}'.format(n, np.log10(diff_w_r_mse_mean)))
         ## new ##
         print('-'*60)
 
