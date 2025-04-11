@@ -313,14 +313,21 @@ if __name__ == "__main__":
             o_dg = output_img.max() / diff_g.max()
             o_dr = output_img.max() / diff_r.max()
             
-            save_images(n, './img', 'Diff_I_D', diff_w*o_dw, diff_g*o_dg, diff_r*o_dr)
+            diff_w = diff_w*o_dw
+            diff_g = diff_g*o_dg
+            diff_r = diff_r*o_dr
+            
+            save_images(n, './img', 'Diff_I_D', diff_w, diff_g, diff_r)
 
             diff_g_w = diff_g - diff_w
             diff_r_w = diff_r - diff_w
             
             o_dg_w = output_img.max() / diff_g_w.max()
             o_dr_w = output_img.max() / diff_r_w.max()
+            
+            diff_g_w = diff_g_w*o_dg_w
+            diff_r_w = diff_r_w*o_dr_w
 
-            save_images(n, './img', 'Diff_M_D', diff_g_w*o_dg_w, diff_r_w*o_dr_w)
+            save_images(n, './img', 'Diff_M_D', diff_g_w, diff_r_w)
         ## new ##
 
